@@ -1,0 +1,428 @@
+-- Name: Muhammad Owais Imran
+-- CWID: 20025554
+-- HW01 - CS561 - C
+
+
+-- Query01
+-- For each customer, compute the minimum and maximum sales quantities along with the
+-- corresponding products (purchased), dates (i.e., dates of those minimum and maximum
+-- sales quantities) and the states in which the sale transactions took place. If there are >1
+-- occurrences of the min or max, display all.
+-- For the same customer, compute the average sales quantity
+
+-- getting min, max, avg for each product,customer pair
+with min_max as (
+	select
+		cust,
+		prod,
+		min(quant) as min_q,
+		max(quant) as max_q,
+		avg(quant) as avg_q
+	from
+		sales
+	group by 
+		cust, prod
+	order by cust
+),
+
+-- getting information of sales with min_quant
+min_merg as (
+	select
+		r.cust,
+		r.min_q,
+		r.prod,
+		l.date,
+		l.state,
+		r.avg_q,
+		r.max_q
+	from
+		sales as l, min_max as r
+	where
+		l.cust=r.cust and l.quant=r.min_q
+	order by cust
+),
+
+-- getting information of sales with max_quant
+max_merg as (
+	select
+		l.cust as customer,
+		l.min_q as min_q,
+		l.prod as min_prod,
+		l.date as min_date,
+		l.state as st,
+		l.max_q as max_q,
+		r.prod as max_prod,
+		r.date as max_date,
+		r.state as st,
+		l.avg_q as avg_q
+	from
+		sales as r, min_merg as l
+	where
+		r.cust=l.cust and r.quant=l.max_q
+	order by customer
+)
+
+select * from max_merg
+
+-- Query02
+-- For each year and month combination, find the "busiest" and the "slowest" day (those
+-- days with the most and the least total sales quantities of products sold) and the
+-- corresponding total sales quantities (i.e., SUMs).
+
+-- table with sales for each day, month, year combination
+with dsales as (
+	select 
+		sum(quant)as sales,
+		day,
+		month,
+		year,
+		date
+	from 
+		sales
+	group by
+		day, month, year, date
+	order by year, month, day
+),
+
+-- getting minimum and maximum sales for each month
+b_s_days as (
+	select
+		min(sales) as s_day_sales,
+		max(sales) as b_day_sales,
+		month,
+		year
+	from
+		dsales
+	group by
+		month, year
+	order by year, month
+),
+
+-- aggregating slowest day info with b_s_days
+s_day as (
+	select 
+		l.year,
+		l.month,
+		r.day,
+		l.s_day_sales,
+		l.b_day_sales
+	from
+		b_s_days as l, dsales as r
+	where
+		l.month=r.month and l.year=r.year and l.s_day_sales=r.sales
+),
+
+-- aggregating busiest_day info with b_s_days
+b_day as (
+	select
+		l.year,
+		l.month,
+		r.day as busiest_day,
+		l.b_day_sales as busiest_total_q,
+		l.day as slowest_day,
+		l.s_day_sales as slowest_total_q
+	from
+		s_day as l, dsales as r
+	where
+		l.month=r.month and l.year=r.year and l.b_day_sales=r.sales
+)
+select * from b_day
+
+-- Query03
+-- For each customer, find the "most favorite" product (the product that the customer
+-- purchased the most) and the "least favorite" product (the product that the customer
+-- purchased the least)
+
+-- Calculate sales of each product, customer pair
+with products_count_per_customer as (
+	select
+		cust, prod, sum(quant) as quant
+	from
+		sales
+	group by
+		cust, prod
+),
+
+-- get the min and max from each set of customer
+min_max_cust as (
+	select
+		cust, min(quant) as min_prod, max(quant) as max_prod
+	from
+		products_count_per_customer
+	group by
+		cust
+),
+
+-- aggregating min count with cust table (least favourite product)
+least_fav_prod as (
+	select 
+		pc.cust, pc.prod
+	from
+		products_count_per_customer as pc, min_max_cust as lf
+	where
+		pc.quant=lf.min_prod and pc.cust=lf.cust
+),
+
+-- aggregating max count with cust table (most favourite product)
+most_fav_prod as (
+	select 
+		pc.cust, pc.prod
+	from
+		products_count_per_customer as pc, min_max_cust as mf
+	where
+		pc.quant=mf.max_prod and pc.cust=mf.cust
+)
+
+-- aggregating both products
+select
+	lf.cust as CUSTOMER,
+	mf.prod as MOST_FAV_PROD,
+	lf.prod as LEAST_FAV_PROD
+from
+	least_fav_prod as lf, most_fav_prod as mf
+where
+	lf.cust = mf.cust
+	
+-- Query04
+-- For each customer and product combination, show the average sales quantities for the
+-- four seasons, Spring, Summer, Fall and Winter in four separate columns - Spring being
+-- the 3 months of March, April and May; and Summer the next 3 months (June, July and
+-- August); and so on - ignore the YEAR component of the dates (i.e., 10/25/2016 is
+-- considered the same date as 10/25/2017, etc.). Additionally, compute the average for the
+-- "whole" year (again ignoring the YEAR component, meaning simply compute AVG) along
+-- with the total quantities (SUM) and the counts (COUNT)
+
+-- fall sale average
+with fall as (
+	select
+		ROUND(avg(quant)) as average,
+		cust,
+		prod,
+		count(quant) as count,
+		sum(quant) as sum
+	from
+		sales
+	where month in (09, 10, 11)
+	group by
+		cust, prod
+),
+-- spring sale average
+spring as (
+	select
+		ROUND(avg(quant)) as average,
+		cust,
+		prod,
+		count(quant) as count,
+		sum(quant) as sum
+	from
+		sales
+	where month in (03, 04, 05)
+	group by
+		cust, prod
+),
+-- summer sale average
+summer as (
+	select
+		ROUND(avg(quant)) as average,
+		cust,
+		prod,
+		count(quant) as count,
+		sum(quant) as sum
+	from
+		sales
+	where month in (06, 07, 08)
+	group by
+		cust, prod
+),
+-- winter sale average
+winter as (
+	select
+		ROUND(avg(quant)) as average,
+		cust,
+		prod,
+		count(quant) as count,
+		sum(quant) as sum
+	from
+		sales
+	where month in (12, 01, 02)
+	group by
+		cust, prod
+)
+
+-- aggregating all tables
+select
+	su.cust as customer,
+	su.prod as product,
+	sp.average as spring_avg,
+	su.average as summer_avg,
+	fa.average as fall_avg,
+	wi.average as winter_avg,
+	(su.sum+wi.sum+sp.sum+fa.sum)/4 as total,
+	(su.count+wi.count+sp.count+fa.count) as count 
+from
+	summer as su,
+	winter as wi,
+	spring as sp,
+	fall as fa
+where
+	su.cust=wi.cust and su.cust=sp.cust and su.cust=fa.cust and
+	wi.cust=sp.cust and wi.cust=fa.cust and
+	sp.cust=fa.cust and
+	su.prod=wi.prod and su.prod=wi.prod and su.prod=fa.prod and
+	wi.prod=sp.prod and wi.prod=fa.prod and
+	sp.prod=fa.prod
+order by su.cust
+
+-- Query05
+-- For each product, output the maximum sales quantities for each quarter in 4 separate
+-- columns. Like the first report, display the corresponding dates (i.e., dates of those
+-- corresponding maximum sales quantities). Ignore the YEAR component of the dates (i.e.,
+-- 10/25/2016 is considered the same date as 10/25/2017, etc.).
+
+-- getting total sales for each day
+with dsales as (
+	select
+		prod,
+		day,
+		month,
+		year,
+		date,
+		sum(quant) as dsale
+	from
+		sales
+	group by
+		day, month, year, prod, date
+	order by year, month, day
+),
+
+-- max sale in q01
+q01_max as (
+	select
+		prod,
+		max(dsale) as max
+	from
+		dsales
+	where 
+		month=01 or month=02 or month=03
+	group by
+		prod
+),
+
+-- max sale in q02
+q02_max as (
+	select
+		prod,
+		max(dsale) as max
+	from
+		dsales
+	where 
+		month=04 or month=05 or month=06
+	group by
+		prod
+),
+
+-- max sale in q03
+q03_max as (
+	select
+		prod,
+		max(dsale) as max
+	from
+		dsales
+	where 
+		month=07 or month=08 or month=09
+	group by
+		prod
+),
+
+-- max sale in q04
+q04_max as (
+	select
+		prod,
+		max(dsale) as max
+	from
+		dsales
+	where 
+		month=10 or month=11 or month=12
+	group by
+		prod
+),
+-- aggregating all q sales for products
+q as (
+	select
+		p.prod,
+		p.max as q1,
+		q.max as q2,
+		r.max as q3,
+		s.max as q4
+	from
+		q01_max as p,
+		q02_max as q,
+		q03_max as r,
+		q04_max as s
+	where
+		p.prod=q.prod and p.prod=r.prod and p.prod=s.prod and
+		q.prod=r.prod and q.prod=s.prod and
+		r.prod=s.prod
+),
+-- getting date for q1 quant
+q1 as (
+	select
+		l.prod,
+		r.date as q1d,
+		l.q1,
+		l.q2,
+		l.q3,
+		l.q4
+	from
+		q as l, dsales as r
+	where
+		l.prod=r.prod and l.q1=r.dsale
+),
+-- getting date for q2 quant
+q2 as (
+	select
+		l.prod,
+		l.q1,
+		l.q1d,
+		l.q2,
+		r.date as q2d,
+		l.q3,
+		l.q4
+	from
+		q1 as l, dsales as r
+	where
+		l.prod=r.prod and l.q2=r.dsale
+),
+-- getting date for q3 quant
+q3 as (
+	select
+		l.prod,
+		l.q1,
+		l.q1d,
+		l.q2,
+		l.q2d,
+		l.q3,
+		r.date as q3d,
+		l.q4
+	from
+		q2 as l, dsales as r
+	where
+		l.prod=r.prod and l.q3=r.dsale
+)
+-- getting date for q4 quant
+select
+	l.prod as product,
+	l.q1 as q1_max,
+	l.q1d as date,
+	l.q2 as q2_max,
+	l.q2d as date,
+	l.q3 as q3_max,
+	l.q3d as date,
+	l.q4 as q4_max,
+	r.date as date
+from
+	q3 as l, dsales as r
+where
+	l.prod=r.prod and l.q3=r.dsale
+order by
+	product
