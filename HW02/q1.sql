@@ -97,11 +97,17 @@ curr_prev_next_j as (
 	on
 		l.cust=r.cust and l.prod=r.prod and l.month=r.month-1
 ),
+reference_t as (
+	select 
+		cust, prod, month, coalesce(prev_avg, 0) as prev_avg, curr_avg, coalesce(next_avg, 0) as next_avg
+	from 
+		curr_prev_next_j
+),
 final_output as (
 	select
-		l.cust, l.prod, l.month, count(r.quant)
+		l.cust as customer, l.prod as product, l.month as month, count(r.quant) as sales_count_between_avgs
 	from
-		curr_prev_next_j l, sales r
+		reference_t l, sales r
 	where
 		r.month=r.month and
 		(r.quant between l.prev_avg and l.next_avg) or (r.quant between l.next_avg and l.prev_avg)
